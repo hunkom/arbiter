@@ -1,7 +1,11 @@
 import logging
 import pika
 
+from uuid import uuid4
+from json import dumps
 from time import sleep
+
+from arbiter.event.arbiter import ArbiterEventHandler
 from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
 from arbiter.config import Config, task_types
@@ -39,6 +43,7 @@ class Minion:
         self.config.worker_type = worker_type
         logging.info("Starting '%s' worker", self.config.worker_type)
         # Listen for task events
+        state["type"] = worker_type
         state["total_workers"] = workers
         state["active_workers"] = 0
         for _ in range(workers):
@@ -49,9 +54,6 @@ class Minion:
         global_handler.join()
 
 
-from uuid import uuid4
-from json import dumps
-from arbiter.event.arbiter import ArbiterEventHandler
 connection = None
 
 
