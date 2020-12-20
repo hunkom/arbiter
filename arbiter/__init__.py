@@ -1,6 +1,7 @@
 import logging
 import pika
 
+from time import sleep
 from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
 from arbiter.config import Config, task_types
@@ -38,6 +39,8 @@ class Minion:
         self.config.worker_type = worker_type
         logging.info("Starting '%s' worker", self.config.worker_type)
         # Listen for task events
+        state["total_workers"] = workers
+        state["active_workers"] = 0
         for _ in range(workers):
             TaskEventHandler(self.config, subscriptions, state, self.task_registry).start()
         # Listen for global events
@@ -147,3 +150,14 @@ class Arbiter:
         self.handler.stop()
         self._get_connection().queue_delete(queue=self.arbiter_id)
         self.handler.join()
+
+    def workers(self):
+        message = {
+            "type": "state",
+            "arbiter": self.arbiter_id
+        }
+        if "state" in self.state:
+            del self.state["state"]
+        self.send_message(message, exchange=self.config.all)
+        sleep(2)
+        return self.state["state"]

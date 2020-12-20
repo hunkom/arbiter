@@ -28,11 +28,19 @@ class ArbiterEventHandler(BaseEventHandler):
         try:
             event_type = event.get("type")
             logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
-            if event.get("task_key") not in self.state:
+            if event.get("task_key") and event.get("task_key") not in self.state:
                 self.state[event.get("task_key")] = {}
             if event_type in ["task_state_change"]:
                 self.state[event.get("task_key")]["state"] = event.get("task_state")
                 logging.info(f"Task state changed: {json.dumps(self.state[event.get('task_key')])}")
+            if event_type == "state":
+                del event["type"]
+                if "state" not in self.state:
+                    self.state["state"] = {}
+                for key, value in event.items():
+                    if key not in self.state["state"]:
+                        self.state["state"][key] = 0
+                    self.state["state"][key] += value
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
         channel.basic_ack(delivery_tag=method.delivery_tag)

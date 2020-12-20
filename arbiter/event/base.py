@@ -1,4 +1,5 @@
 import time
+import json
 import threading
 import pika
 import logging
@@ -67,6 +68,17 @@ class BaseEventHandler(threading.Thread):
 
     def stopped(self):
         return self._stop_event.is_set()
+
+    @staticmethod
+    def respond(channel, message, queue):
+        logging.debug(message)
+        channel.basic_publish(
+            exchange="", routing_key=queue,
+            body=json.dumps(message).encode("utf-8"),
+            properties=pika.BasicProperties(
+                delivery_mode=2
+            )
+        )
 
     def queue_event_callback(self, channel, method, properties, body):  # pylint: disable=R0912,R0915
         raise NotImplemented

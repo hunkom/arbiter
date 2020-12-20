@@ -27,6 +27,7 @@ class TaskEventHandler(BaseEventHandler):
         logging.info("[%s] [TaskEvent] Got event", self.ident)
         event = json.loads(body)
         try:
+            self.state["active_workers"] += 1
             # new tasks will be w/o key testing purpose only
             # do not use in prod implementation
             if not event.get("task_key"):
@@ -35,17 +36,8 @@ class TaskEventHandler(BaseEventHandler):
             logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
             if event_type == "task":
                 if event.get("arbiter"):
-                    channel.basic_publish(
-                        exchange="", routing_key=event.get("arbiter"),
-                        body=json.dumps({
-                            "type": "task_state_change",
-                            "task_key": event.get("task_key"),
-                            "task_state": "running"
-                        }).encode("utf-8"),
-                        properties=pika.BasicProperties(
-                            delivery_mode=2
-                        )
-                    )
+                    self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
+                                           "task_state": "running"}, event.get("arbiter"))
                 logging.info("[%s] [TaskEvent] Starting worker process", self.ident)
                 if event.get("task_name") not in self.task_registry:
                     raise ModuleNotFoundError("Task is not a part of this worker")
@@ -62,31 +54,12 @@ class TaskEventHandler(BaseEventHandler):
                 self.state.pop(event.get("task_key"))
                 logging.info("[%s] [TaskEvent] Worker process stopped", self.ident)
                 if event.get("arbiter"):
-                    channel.basic_publish(
-                        exchange="", routing_key=event.get("arbiter"),
-                        body=json.dumps({
-                            "type": "task_state_change",
-                            "task_key": event.get("task_key"),
-                            "result": task_result,
-                            "task_state": "done"
-                        }).encode("utf-8"),
-                        properties=pika.BasicProperties(
-                            delivery_mode=2
-                        )
-                    )
+                    self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
+                                           "result": task_result, "task_state": "done"}, event.get("arbiter"))
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
             if event.get("arbiter"):
-                channel.basic_publish(
-                    exchange="", routing_key=event.get("arbiter"),
-                    body=json.dumps({
-                        "type": "task_state_change",
-                        "task_key": event.get("task_key"),
-                        "result": format_exc(),
-                        "task_state": "exception"
-                    }).encode("utf-8"),
-                    properties=pika.BasicProperties(
-                        delivery_mode=2
-                    )
-                )
+                self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
+                                       "result": format_exc(), "task_state": "exception"}, event.get("arbiter"))
+        self.state["active_workers"] -= 1
         channel.basic_ack(delivery_tag=method.delivery_tag)

@@ -36,11 +36,14 @@ class GlobalEventHandler(BaseEventHandler):
                 if task_key in self.state and self.state[task_key].is_alive():
                     logging.info("[GlobalEvent] Terminating task %s", task_key)
                     self.state[task_key].terminate()
-            #
-            if event_type == "subscription_notification":
+            elif event_type == "subscription_notification":
                 subscription = event.get("subscription")
                 if subscription in self.subscriptions:
                     logging.info("[GlobalEvent] Got data for subscription %s", subscription)
                     self.subscriptions[subscription] = event.get("data")
+            elif event_type == "state":
+                self.respond(channel, {"active": self.state["active_workers"],  "total": self.state["total_workers"],
+                                       "available": self.state["total_workers"] - self.state["active_workers"],
+                                       "type": "state"}, event["arbiter"])
         except:  # pylint: disable=W0702
             logging.exception("[GlobalEvent] Got exception")
