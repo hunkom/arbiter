@@ -8,6 +8,7 @@ logging.basicConfig(
 
 task_types = ["heavy", "light"]
 
+
 class Config(object):
     def __init__(self, host, port, user, password, vhost,
                  light_queue, heavy_queue, all_queue):

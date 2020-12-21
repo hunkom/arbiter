@@ -10,11 +10,110 @@ from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
 from arbiter.config import Config, task_types
 
+connection = None
 
-class Minion:
+
+class Base:
     def __init__(self, host, port, user, password, vhost="carrier",
                  light_queue="arbiterLight", heavy_queue="arbiterHeavy", all_queue="arbiterAll"):
         self.config = Config(host, port, user, password, vhost, light_queue, heavy_queue, all_queue)
+        self.state = dict()
+
+    def _get_connection(self):
+        global connection
+        if not connection:
+            _connection = pika.BlockingConnection(
+                pika.ConnectionParameters(
+                    host=self.config.host,
+                    port=self.config.port,
+                    virtual_host=self.config.vhost,
+                    credentials=pika.PlainCredentials(
+                        self.config.user,
+                        self.config.password
+                    )
+                )
+            )
+            channel = _connection.channel()
+            channel.queue_declare(
+                queue=self.config.light, durable=True
+            )
+            channel.queue_declare(
+                queue=self.config.heavy, durable=True
+            )
+            channel.exchange_declare(
+                exchange=self.config.all,
+                exchange_type="fanout", durable=True
+            )
+            connection = channel
+        return connection
+
+    def send_message(self, msg, queue="", exchange=""):
+        self._get_connection().basic_publish(
+            exchange=exchange, routing_key=queue,
+            body=dumps(msg).encode("utf-8"),
+            properties=pika.BasicProperties(
+                delivery_mode=2
+            )
+        )
+
+    def wait_for_tasks(self, tasks):
+        tasks_done = []
+        while not all(task in tasks_done for task in tasks):
+            for task in tasks:
+                if task not in tasks_done and self.state[task]["state"] == 'done':
+                    tasks_done.append(task)
+                    yield self.state[task]
+
+    def add_task(self, task_name, task_type='heavy', tasks_count=1, task_args=None, task_kwargs=None,
+                 queue_id=None, sync=False):
+        if not task_args:
+            task_args = []
+        if not task_kwargs:
+            task_kwargs = {}
+        generated_queue = False
+        if not queue_id and sync:
+            generated_queue = True
+            queue_id = str(uuid4())
+            self._get_connection().queue_declare(
+                queue=queue_id, durable=True
+            )
+        message = {
+            "type": "task",
+            "task_name": task_name,
+            "task_key": "",
+            "args": task_args,
+            "kwargs": task_kwargs,
+            "arbiter": queue_id
+        }
+        tasks = []
+        for _ in range(tasks_count):
+            task_key = str(uuid4())
+            tasks.append(task_key)
+            if queue_id:
+                self.state[task_key] = {
+                    "task_type": task_type,
+                    "state": "initiated"
+                }
+            message["task_key"] = task_key
+            self.send_message(message, queue=self.config.__getattribute__(task_type))
+            yield task_key
+        if generated_queue:
+            handler = ArbiterEventHandler(self.config, {}, self.state, queue_id)
+            handler.start()
+        if sync:
+            for message in self.wait_for_tasks(tasks):
+                yield message
+        if generated_queue:
+            handler.stop()
+            self._get_connection().queue_delete(queue=queue_id)
+            handler.join()
+
+
+class Minion(Base):
+    def __init__(self, host, port, user, password, vhost="carrier",
+                 light_queue="arbiterLight", heavy_queue="arbiterHeavy", all_queue="arbiterAll"):
+        super().__init__(host, port, user, password, vhost, light_queue,
+                         heavy_queue, all_queue)
         self.task_registry = {}
 
     def task(self, *args, **kwargs):
@@ -54,14 +153,11 @@ class Minion:
         global_handler.join()
 
 
-connection = None
-
-
-class Arbiter:
-    # ToDo: inmemory sqlite for state
+class Arbiter(Base):
     def __init__(self, host, port, user, password, vhost="carrier", light_queue="arbiterLight",
                  heavy_queue="arbiterHeavy", all_queue="arbiterAll", start_consumer=True):
-        self.config = Config(host, port, user, password, vhost, light_queue, heavy_queue, all_queue)
+        super().__init__(host, port, user, password, vhost, light_queue,
+                         heavy_queue, all_queue)
         self.arbiter_id = None
         self.state = dict()
         self.subscriptions = dict()
@@ -71,68 +167,9 @@ class Arbiter:
             self.handler = ArbiterEventHandler(self.config, self.subscriptions, self.state, self.arbiter_id)
             self.handler.start()
 
-    def _get_connection(self):
-        global connection
-        if not connection:
-
-            _connection = pika.BlockingConnection(
-                pika.ConnectionParameters(
-                    host=self.config.host,
-                    port=self.config.port,
-                    virtual_host=self.config.vhost,
-                    credentials=pika.PlainCredentials(
-                        self.config.user,
-                        self.config.password
-                    )
-                )
-            )
-            channel = _connection.channel()
-            channel.queue_declare(
-                queue=self.config.light, durable=True
-            )
-            channel.queue_declare(
-                queue=self.config.heavy, durable=True
-            )
-            channel.exchange_declare(
-                exchange=self.config.all,
-                exchange_type="fanout", durable=True
-            )
-            connection = channel
-        return connection
-
-    def send_message(self, msg, queue="", exchange=""):
-        self._get_connection().basic_publish(
-            exchange=exchange, routing_key=queue,
-            body=dumps(msg).encode("utf-8"),
-            properties=pika.BasicProperties(
-                delivery_mode=2
-            )
-        )
-
     def apply(self, task_name, task_type="heavy", tasks_count=1, task_args=None, task_kwargs=None):
-        if not task_args:
-            task_args = []
-        if not task_kwargs:
-            task_kwargs = {}
-        message = {
-            "type": "task",
-            "task_name": task_name,
-            "task_key": "",
-            "args": task_args,
-            "kwargs": task_kwargs,
-            "arbiter": self.arbiter_id
-        }
-        tasks = []
-        for _ in range(tasks_count):
-            task_key = str(uuid4())
-            tasks.append(task_key)
-            message["task_key"] = task_key
-            self.state[task_key] = {
-                "task_type": task_type,
-                "state": "initiated"
-            }
-            self.send_message(message, queue=self.config.__getattribute__(task_type))
-        return tasks
+        return list(self.add_task(task_name, task_type, tasks_count,
+                                  task_args, task_kwargs, queue_id=self.arbiter_id))
 
     def kill(self, task_key):
         message = {

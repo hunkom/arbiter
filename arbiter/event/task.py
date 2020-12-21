@@ -1,6 +1,6 @@
 import json
 import logging
-import pika
+from multiprocessing import Queue
 from uuid import uuid4
 from traceback import format_exc
 
@@ -12,6 +12,7 @@ class TaskEventHandler(BaseEventHandler):
     def __init__(self, settings, subscriptions, state, task_registry):
         super().__init__(settings, subscriptions, state)
         self.task_registry = task_registry
+        self.result_queue = Queue()
 
     def _connect_to_specific_queue(self, channel):
         channel.basic_qos(prefetch_count=1)
@@ -43,19 +44,18 @@ class TaskEventHandler(BaseEventHandler):
                     raise ModuleNotFoundError("Task is not a part of this worker")
                 worker = TaskProcess(
                     self.settings, self.subscriptions, self.task_registry[event.get("task_name")],
-                    event.get("task_name"), event.get("task_key"), event.get("args", []),
-                    event.get("kwargs", {})
-                )
+                    event.get("task_name"), event.get("task_key"), self.result_queue, event.get("args", []),
+                    event.get("kwargs", {}))
                 self.state[event.get("task_key")] = worker
                 worker.start()
                 while worker.is_alive():
                     channel._connection.sleep(1.0)  # pylint: disable=W0212
-                task_result = worker.result()
+                result = self.result_queue.get()
                 self.state.pop(event.get("task_key"))
                 logging.info("[%s] [TaskEvent] Worker process stopped", self.ident)
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
-                                           "result": task_result, "task_state": "done"}, event.get("arbiter"))
+                                           "result": result, "task_state": "done"}, event.get("arbiter"))
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
             if event.get("arbiter"):

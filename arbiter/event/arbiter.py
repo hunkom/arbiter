@@ -32,7 +32,8 @@ class ArbiterEventHandler(BaseEventHandler):
                 self.state[event.get("task_key")] = {}
             if event_type in ["task_state_change"]:
                 self.state[event.get("task_key")]["state"] = event.get("task_state")
-                logging.info(f"Task state changed: {json.dumps(self.state[event.get('task_key')])}")
+                if event.get("result"):
+                    self.state[event.get("task_key")]["result"] = event.get("result")
             if event_type == "state":
                 worker_type = event["worker"]
                 del event["type"]
