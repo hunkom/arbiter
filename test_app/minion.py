@@ -1,14 +1,8 @@
-#
-#
-#  Simple Task add x+y
-#
-#
-
 from arbiter import Minion
 import logging
 from time import sleep
 
-app = Minion(host="192.168.1.3", port=5672, user='user', password='password')
+app = Minion(host="localhost", port=5672, user='user', password='password')
 
 
 @app.task(name="add")
@@ -16,7 +10,7 @@ def add(x, y):
     logging.info("Running task 'add'")
     sleep(10)
     # task that initiate new task within same app
-    for message in app.add_task('simple_add', task_args=[3, 4], sync=True):
+    for message in app.apply('simple_add', task_args=[3, 4]):
         logging.info(message)
     logging.info("sleep done")
     return x+y
@@ -28,12 +22,18 @@ def adds(x, y):
     return x + y
 
 
+@app.task(name="add_in_pipe")
+def addp(x, y, upstream=0):
+    logging.info("Running task 'add_in_pipe'")
+    return x + y + upstream
+
+
 #
 #  Complicated task with
 #  Running container and passing params to container
 #
 @app.task(name="lambda")
-def faas(runtime="", artifact="/", galloper='', auth_token='', lambda_env=[], entrypoint=''):
+def function_as_a_service(runtime="", artifact="/", galloper='', auth_token='', lambda_env=[], entrypoint=''):
     pass
 
 

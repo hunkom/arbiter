@@ -24,15 +24,8 @@ setup(
     long_description='Lightweight distributed task queue',
     url='https://getcarrier.io',
     license='Apache License 2.0',
-    author='arozumenko',
-    author_email='artem_rozumenko@epam.com',
+    author='arozumenko, LifeDJIK',
+    author_email='artem_rozumenko@epam.com, ivan_krakhmaliuk@epam.com',
     packages=find_packages(),
-    install_requires=required,
-    include_package_data=True,
-    zip_safe=False,
-    entry_points={
-        'console_scripts': [
-            'worker=arbiter.worker:main'
-        ]
-    },
+    install_requires=required
 )

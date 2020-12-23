@@ -63,49 +63,39 @@ class Base:
                 if task not in tasks_done and self.state[task]["state"] == 'done':
                     tasks_done.append(task)
                     yield self.state[task]
+            sleep(1)
 
-    def add_task(self, task_name, task_type='heavy', tasks_count=1, task_args=None, task_kwargs=None,
-                 queue_id=None, sync=False):
-        if not task_args:
-            task_args = []
-        if not task_kwargs:
-            task_kwargs = {}
+    def add_task(self, task, sync=False):
         generated_queue = False
-        if not queue_id and sync:
+        if not task.callback_queue and sync:
             generated_queue = True
             queue_id = str(uuid4())
             self._get_connection().queue_declare(
                 queue=queue_id, durable=True
             )
-        message = {
-            "type": "task",
-            "task_name": task_name,
-            "task_key": "",
-            "args": task_args,
-            "kwargs": task_kwargs,
-            "arbiter": queue_id
-        }
         tasks = []
-        for _ in range(tasks_count):
+        for _ in range(task.tasks_count):
             task_key = str(uuid4())
             tasks.append(task_key)
-            if queue_id:
+            if task.callback_queue:
                 self.state[task_key] = {
-                    "task_type": task_type,
+                    "task_type": task.task_type,
                     "state": "initiated"
                 }
+            logging.info(task.to_json())
+            message = task.to_json()
             message["task_key"] = task_key
-            self.send_message(message, queue=self.config.__getattribute__(task_type))
+            self.send_message(message, queue=self.config.__getattribute__(task.task_type))
             yield task_key
         if generated_queue:
-            handler = ArbiterEventHandler(self.config, {}, self.state, queue_id)
+            handler = ArbiterEventHandler(self.config, {}, self.state, task.callback_queue)
             handler.start()
         if sync:
             for message in self.wait_for_tasks(tasks):
                 yield message
         if generated_queue:
             handler.stop()
-            self._get_connection().queue_delete(queue=queue_id)
+            self._get_connection().queue_delete(queue=task.callback_queue)
             handler.join()
 
 
@@ -115,6 +105,11 @@ class Minion(Base):
         super().__init__(host, port, user, password, vhost, light_queue,
                          heavy_queue, all_queue)
         self.task_registry = {}
+
+    def apply(self, task_name, task_type="heavy", tasks_count=1, task_args=None, task_kwargs=None, sync=True):
+        task = Task(task_name, task_type, tasks_count, task_args, task_kwargs)
+        for message in self.add_task(task, sync=sync):
+            yield message
 
     def task(self, *args, **kwargs):
         """ Task decorator """
@@ -159,7 +154,7 @@ class Arbiter(Base):
         super().__init__(host, port, user, password, vhost, light_queue,
                          heavy_queue, all_queue)
         self.arbiter_id = None
-        self.state = dict()
+        self.state = dict(groups=dict())
         self.subscriptions = dict()
         self.handler = None
         if start_consumer:
@@ -168,8 +163,8 @@ class Arbiter(Base):
             self.handler.start()
 
     def apply(self, task_name, task_type="heavy", tasks_count=1, task_args=None, task_kwargs=None):
-        return list(self.add_task(task_name, task_type, tasks_count,
-                                  task_args, task_kwargs, queue_id=self.arbiter_id))
+        task = Task(task_name, task_type, tasks_count, task_args, task_kwargs, callback_queue=self.arbiter_id)
+        return list(self.add_task(task))
 
     def kill(self, task_key):
         message = {
@@ -181,9 +176,27 @@ class Arbiter(Base):
         while True:
             if self.state[task_key]["state"] == "done":
                 break
+            sleep(1)
 
     def status(self, task_key):
-        return self.state[task_key]["state"]
+        if task_key in self.state:
+            return self.state[task_key]["state"]
+        elif task_key in self.state["groups"]:
+            group_results = {
+                "state": "done",
+                "initiated": 0,
+                "running": 0,
+                "done": 0,
+                "tasks": []
+            }
+            for task_id in self.state["groups"][task_key]:
+                if self.state[task_id]["state"] in ["running", "initiated"]:
+                    group_results["state"] = self.state[task_id]["state"]
+                group_results[self.state[task_id]["state"]] += 1
+                group_results["tasks"].append(self.state[task_id])
+            return group_results
+        else:
+            raise NameError("Task or Group not found")
 
     def close(self):
         self.handler.stop()
@@ -200,3 +213,83 @@ class Arbiter(Base):
         self.send_message(message, exchange=self.config.all)
         sleep(2)
         return self.state["state"]
+
+    def squad(self, tasks, callback=None):
+        """
+        Set of tasks that need to be executed together
+        """
+        workers_count = {"heavy": 0, "light": 0}
+        for each in tasks:
+            workers_count[each.task_type] += each.tasks_count
+        stats = self.workers()
+        for key in workers_count.keys():
+            if workers_count[key] and stats[key]["available"] < workers_count[key]:
+                raise NameError(f"Not enough of {key} workers")
+        return self.group(tasks, callback)
+
+    def group(self, tasks, callback=None):
+        """
+        Set of tasks that need to be executed regardless of order
+        """
+        group_id = str(uuid4())
+        self.state["groups"][group_id] = []
+        for each in tasks:
+            each.callback_queue = self.arbiter_id
+            for task in self.add_task(each):
+                self.state["groups"][group_id].append(task)
+        if callback:
+            self.wait_for_tasks(self.state["groups"][group_id])
+            for task in self.add_task(callback):
+                self.state["groups"][group_id].append(task)
+        return group_id
+
+    def pipe(self, tasks, persistent_args=None, persistent_kwargs=None):
+        """
+        Set of tasks that need to be executed sequentially
+        NOTE: Persistent args always before the task args
+              Task itself need to have **kwargs if you want to ignore upstream results
+        """
+        pipe_id = str(uuid4())
+        self.state["groups"][pipe_id] = []
+        if not persistent_args:
+            persistent_args = []
+        if not persistent_kwargs:
+            persistent_kwargs = {}
+        res = {}
+        yield {"pipe_id": pipe_id}
+        for task in tasks:
+            task.callback_queue = self.arbiter_id
+            task.task_args = persistent_args + task.task_args
+            for key, value in persistent_kwargs:
+                if key not in task.task_kwargs:
+                    task.task_kwargs[key] = value
+            if res:
+                task.task_kwargs['upstream'] = res.get("result")
+            res = list(self.add_task(task, sync=True))
+            self.state["groups"][pipe_id].append(res[0])
+            res = res[1]
+            yield res
+
+
+class Task:
+    def __init__(self, name, task_type='heavy', tasks_count=1, task_args=None, task_kwargs=None, callback_queue=None):
+        if not task_args:
+            task_args = []
+        if not task_kwargs:
+            task_kwargs = {}
+        self.name = name
+        self.task_type = task_type
+        self.tasks_count = tasks_count
+        self.task_args = task_args
+        self.task_kwargs = task_kwargs
+        self.callback_queue = callback_queue
+
+    def to_json(self):
+        return {
+            "type": "task",
+            "task_name": self.name,
+            "task_key": "",
+            "args": self.task_args,
+            "kwargs": self.task_kwargs,
+            "arbiter": self.callback_queue
+        }
