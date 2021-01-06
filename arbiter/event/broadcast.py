@@ -33,12 +33,15 @@ class GlobalEventHandler(BaseEventHandler):
             #
             if event_type in ["stop_task", "purge_task"]:
                 task_key = event.get("task_key")
+                logging.info(f"!!!!!!!!!!!!!!!!!! Task key: {task_key}")
+                logging.info(f"!!!!!!!!!!!!!!!!!! State: {self.state}")
                 if task_key in self.state and self.state[task_key].is_alive():
                     logging.info("[GlobalEvent] Terminating task %s", task_key)
                     self.state[task_key].terminate()
-                elif task_key in self.state["groups"] and self.state["groups"][task_key]:
+                elif task_key in self.state["groups"]:
                     logging.info("[GlobalEvent] Terminating task %s", task_key)
-                    self.state["groups"][task_key].terminate()
+                    for each in self.state["groups"][task_key][-1]:
+                        each.terminate()
             elif event_type == "subscription_notification":
                 subscription = event.get("subscription")
                 if subscription in self.subscriptions:
