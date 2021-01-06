@@ -168,7 +168,7 @@ class Arbiter(Base):
 
     def kill(self, task_key):
         messages = []
-        for each in self.state["groups"][-1]:
+        for each in self.state["groups"][task_key][-1]:
             messages.append({
                 "type": "stop_task",
                 "task_key": each,
