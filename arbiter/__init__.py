@@ -174,7 +174,9 @@ class Arbiter(Base):
         }
         self.send_message(message, exchange=self.config.all)
         while True:
-            if self.state[task_key]["state"] == "done":
+            if task_key in self.state and self.state[task_key]["state"] == "done":
+                break
+            elif task_key in self.state["groups"] and self.state["groups"][task_key] == "done":
                 break
             sleep(1)
 
