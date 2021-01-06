@@ -190,10 +190,11 @@ class Arbiter(Base):
                 "tasks": []
             }
             for task_id in self.state["groups"][task_key]:
-                if self.state[task_id]["state"] in ["running", "initiated"]:
-                    group_results["state"] = self.state[task_id]["state"]
-                group_results[self.state[task_id]["state"]] += 1
-                group_results["tasks"].append(self.state[task_id])
+                if task_id in self.state:
+                    if self.state[task_id]["state"] in ["running", "initiated"]:
+                        group_results["state"] = self.state[task_id]["state"]
+                    group_results[self.state[task_id]["state"]] += 1
+                    group_results["tasks"].append(self.state[task_id])
             return group_results
         else:
             raise NameError("Task or Group not found")
