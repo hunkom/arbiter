@@ -36,6 +36,9 @@ class GlobalEventHandler(BaseEventHandler):
                 if task_key in self.state and self.state[task_key].is_alive():
                     logging.info("[GlobalEvent] Terminating task %s", task_key)
                     self.state[task_key].terminate()
+                elif task_key in self.state["groups"] and self.state["groups"][task_key].is_alive():
+                    logging.info("[GlobalEvent] Terminating task %s", task_key)
+                    self.state["groups"][task_key].terminate()
             elif event_type == "subscription_notification":
                 subscription = event.get("subscription")
                 if subscription in self.subscriptions:
