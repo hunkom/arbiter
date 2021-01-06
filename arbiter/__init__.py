@@ -176,7 +176,7 @@ class Arbiter(Base):
         while True:
             if task_key in self.state and self.state[task_key]["state"] == "done":
                 break
-            elif task_key in self.state["groups"] and self.state["groups"][task_key] == "done":
+            elif task_key in self.state["groups"] and self.state["groups"][task_key]["state"] == "done":
                 break
             sleep(1)
 
