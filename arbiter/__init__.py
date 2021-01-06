@@ -209,11 +209,12 @@ class Arbiter(Base):
             "type": "state",
             "arbiter": self.arbiter_id
         }
+        state = self.state["state"] if "state" in self.state else {}
         if "state" in self.state:
             del self.state["state"]
         self.send_message(message, exchange=self.config.all)
         sleep(2)
-        return self.state["state"]
+        return self.state["state"] if "state" in self.state else state
 
     def squad(self, tasks, callback=None):
         """
