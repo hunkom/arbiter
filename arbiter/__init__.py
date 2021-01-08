@@ -185,7 +185,13 @@ class Arbiter(Base):
             if task_id in self.state:
                 tasks.append(task_id)
                 self.kill(task_id, sync=False)
-        self.wait_for_tasks(tasks)
+        tasks_done = []
+        while not all(task in tasks_done for task in tasks):
+            for task in tasks:
+                if task not in tasks_done and self.state[task]["state"] == 'done':
+                    tasks_done.append(task)
+            logging.info("Terminating ...")
+            sleep(1)
 
     def status(self, task_key):
         if task_key in self.state:
