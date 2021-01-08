@@ -167,15 +167,16 @@ class Arbiter(Base):
         return list(self.add_task(task))
 
     def kill(self, task_key):
-        messages = []
-        for each in self.state["groups"][task_key][-1]:
-            messages.append({
-                "type": "stop_task",
-                "task_key": each,
-                "arbiter": self.arbiter_id
-            })
-        for message in messages:
-            self.send_message(message, exchange=self.config.all)
+        logging.info("**************************************************")
+        logging.info(f"Group_id: {task_key}")
+        logging.info(f"State: {self.state}")
+        logging.info("**************************************************")
+        message = {
+            "type": "stop_task",
+            "task_key": task_key,
+            "arbiter": self.arbiter_id
+        }
+        self.send_message(message, exchange=self.config.all)
         while True:
             if task_key in self.state and self.state[task_key]["state"] == "done":
                 break
