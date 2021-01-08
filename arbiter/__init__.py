@@ -240,8 +240,8 @@ class Arbiter(Base):
             workers_count[each.task_type] += each.tasks_count
         stats = self.workers()
         for key in workers_count.keys():
-            logging.info(f"available: {stats[key]['available']}")
-            logging.info(f"to run {workers_count[key]}")
+            logging.info(f"available: {stats['heavy']['available']}")
+            logging.info(f"to run {workers_count['heavy']}")
             if workers_count[key] and stats[key]["available"] < workers_count[key]:
                 raise NameError(f"Not enough of {key} workers")
         return self.group(tasks, callback)
