@@ -166,23 +166,26 @@ class Arbiter(Base):
         task = Task(task_name, task_type, tasks_count, task_args, task_kwargs, callback_queue=self.arbiter_id)
         return list(self.add_task(task))
 
-    def kill(self, task_key):
-        logging.info("**************************************************")
-        logging.info(f"Group_id: {task_key}")
-        logging.info(f"State: {self.state}")
-        logging.info("**************************************************")
+    def kill(self, task_key, sync=True):
         message = {
             "type": "stop_task",
             "task_key": task_key,
             "arbiter": self.arbiter_id
         }
         self.send_message(message, exchange=self.config.all)
-        while True:
-            if task_key in self.state and self.state[task_key]["state"] == "done":
-                break
-            elif task_key in self.state["groups"] and self.state["groups"][task_key]["state"] == "done":
-                break
-            sleep(1)
+        if sync:
+            while True:
+                if task_key in self.state and self.state[task_key]["state"] == "done":
+                    break
+                sleep(1)
+
+    def kill_group(self, group_id):
+        tasks = []
+        for task_id in self.state["groups"][group_id]:
+            if task_id in self.state:
+                tasks.append(task_id)
+                self.kill(task_id, sync=False)
+        self.wait_for_tasks(tasks)
 
     def status(self, task_key):
         if task_key in self.state:
