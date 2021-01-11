@@ -63,7 +63,6 @@ class Base:
                 if task not in tasks_done and self.state[task]["state"] == 'done':
                     tasks_done.append(task)
                     yield self.state[task]
-            sleep(1)
 
     def add_task(self, task, sync=False):
         generated_queue = False
@@ -257,7 +256,8 @@ class Arbiter(Base):
             for task in self.add_task(each):
                 self.state["groups"][group_id].append(task)
         if callback:
-            self.wait_for_tasks(self.state["groups"][group_id])
+            for message in self.wait_for_tasks(self.state["groups"][group_id]):
+                logging.info(f"Message: {message}")
             for task in self.add_task(callback):
                 self.state["groups"][group_id].append(task)
         return group_id
