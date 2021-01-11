@@ -249,6 +249,7 @@ class Arbiter(Base):
             "type": "state",
             "arbiter": self.arbiter_id
         }
+        sleep(5)
         #state = self.state["state"] if "state" in self.state else {}
         logging.info(f"Before: {self.state}")
         if "state" in self.state:
