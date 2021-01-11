@@ -49,6 +49,7 @@ class Base:
 
     def send_message(self, msg, queue="", exchange=""):
         try:
+            logging.info(f"Send message: {msg}")
             self._get_connection().basic_publish(
                 exchange=exchange, routing_key=queue,
                 body=dumps(msg).encode("utf-8"),
@@ -57,6 +58,7 @@ class Base:
                 )
             )
         except pika.exceptions.StreamLostError:
+            logging.info(f"Exception !!! Send message: {msg}")
             self._get_connection(recreate=True).basic_publish(
                 exchange=exchange, routing_key=queue,
                 body=dumps(msg).encode("utf-8"),
