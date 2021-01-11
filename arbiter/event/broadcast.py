@@ -25,8 +25,6 @@ class GlobalEventHandler(BaseEventHandler):
         """ Process event """
         _ = properties, self, channel, method
         logging.info("[GlobalEvent] Got event")
-        logging.info(f"total workers: {self.state['total_workers']}")
-        logging.info(f"active workers: {self.state['active_workers']}")
         try:
             event = json.loads(body)
             #

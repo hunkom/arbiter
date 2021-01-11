@@ -43,7 +43,7 @@ class ArbiterEventHandler(BaseEventHandler):
                 if worker_type not in self.state["state"]:
                     self.state["state"][worker_type] = {}
                 for key, value in event.items():
-                    if key not in self.state["state"]:
+                    if key not in self.state["state"][worker_type]:
                         self.state["state"][worker_type][key] = 0
                     self.state["state"][worker_type][key] += value
         except:
