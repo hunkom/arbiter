@@ -249,16 +249,11 @@ class Arbiter(Base):
             "type": "state",
             "arbiter": self.arbiter_id
         }
-        sleep(5)
-        #state = self.state["state"] if "state" in self.state else {}
-        logging.info(f"Before: {self.state}")
         if "state" in self.state:
             del self.state["state"]
         self.send_message(message, exchange=self.config.all)
-        while "state" not in self.state:
-            sleep(2)
-            logging.info(f"After: {self.state}")
-        return self.state["state"] #if "state" in self.state else state
+        sleep(5)
+        return self.state["state"]
 
     def squad(self, tasks, callback=None):
         """
@@ -267,6 +262,7 @@ class Arbiter(Base):
         workers_count = {"heavy": 0, "light": 0}
         for each in tasks:
             workers_count[each.task_type] += each.tasks_count
+        sleep(5)
         stats = self.workers()
         for key in workers_count.keys():
             logging.info(f"available: {stats['heavy']['available']}")
