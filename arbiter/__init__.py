@@ -129,14 +129,18 @@ class Minion(Base):
 
     def task(self, *args, **kwargs):
         """ Task decorator """
+
         def inner_task(func):
             def create_task(**kwargs):
                 def _create_task(func):
                     return self._create_task_from_callable(func, **kwargs)
+
                 return _create_task
+
             if callable(func):
                 return create_task(**kwargs)(func)
             raise TypeError('@task decorated function must be callable')
+
         return inner_task
 
     def _create_task_from_callable(self, func, name=None, task_type="heavy", **kwargs):
@@ -243,14 +247,15 @@ class Arbiter(Base):
             "type": "state",
             "arbiter": self.arbiter_id
         }
-        state = self.state["state"] if "state" in self.state else {}
+        #state = self.state["state"] if "state" in self.state else {}
         logging.info(f"Before: {self.state}")
         if "state" in self.state:
             del self.state["state"]
         self.send_message(message, exchange=self.config.all)
-        sleep(2)
-        logging.info(f"After: {self.state}")
-        return self.state["state"] if "state" in self.state else state
+        while "state" not in self.state:
+            sleep(2)
+            logging.info(f"After: {self.state}")
+        return self.state["state"] #if "state" in self.state else state
 
     def squad(self, tasks, callback=None):
         """
