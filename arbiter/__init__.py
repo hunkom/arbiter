@@ -19,9 +19,9 @@ class Base:
         self.config = Config(host, port, user, password, vhost, light_queue, heavy_queue, all_queue)
         self.state = dict()
 
-    def _get_connection(self):
+    def _get_connection(self, recreate=False):
         global connection
-        if not connection:
+        if not connection or recreate:
             _connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
                     host=self.config.host,
@@ -48,13 +48,22 @@ class Base:
         return connection
 
     def send_message(self, msg, queue="", exchange=""):
-        self._get_connection().basic_publish(
-            exchange=exchange, routing_key=queue,
-            body=dumps(msg).encode("utf-8"),
-            properties=pika.BasicProperties(
-                delivery_mode=2
+        try:
+            self._get_connection().basic_publish(
+                exchange=exchange, routing_key=queue,
+                body=dumps(msg).encode("utf-8"),
+                properties=pika.BasicProperties(
+                    delivery_mode=2
+                )
             )
-        )
+        except pika.exceptions.StreamLostError:
+            self._get_connection(recreate=True).basic_publish(
+                exchange=exchange, routing_key=queue,
+                body=dumps(msg).encode("utf-8"),
+                properties=pika.BasicProperties(
+                    delivery_mode=2
+                )
+            )
 
     def wait_for_tasks(self, tasks):
         tasks_done = []
@@ -69,9 +78,14 @@ class Base:
         if not task.callback_queue and sync:
             generated_queue = True
             queue_id = str(uuid4())
-            self._get_connection().queue_declare(
-                queue=queue_id, durable=True
-            )
+            try:
+                self._get_connection().queue_declare(
+                    queue=queue_id, durable=True
+                )
+            except pika.exceptions.StreamLostError:
+                self._get_connection(recreate=True).queue_declare(
+                    queue=queue_id, durable=True
+                )
         tasks = []
         for _ in range(task.tasks_count):
             task_key = str(uuid4())
@@ -94,7 +108,10 @@ class Base:
                 yield message
         if generated_queue:
             handler.stop()
-            self._get_connection().queue_delete(queue=task.callback_queue)
+            try:
+                self._get_connection().queue_delete(queue=task.callback_queue)
+            except pika.exceptions.StreamLostError:
+                self._get_connection(recreate=True).queue_delete(queue=task.callback_queue)
             handler.join()
 
 
@@ -215,7 +232,10 @@ class Arbiter(Base):
 
     def close(self):
         self.handler.stop()
-        self._get_connection().queue_delete(queue=self.arbiter_id)
+        try:
+            self._get_connection().queue_delete(queue=self.arbiter_id)
+        except pika.exceptions.StreamLostError:
+            self._get_connection(recreate=True).queue_delete(queue=self.arbiter_id)
         self.handler.join()
 
     def workers(self):
@@ -224,10 +244,12 @@ class Arbiter(Base):
             "arbiter": self.arbiter_id
         }
         state = self.state["state"] if "state" in self.state else {}
+        logging.info(f"Before: {self.state}")
         if "state" in self.state:
             del self.state["state"]
         self.send_message(message, exchange=self.config.all)
         sleep(2)
+        logging.info(f"After: {self.state}")
         return self.state["state"] if "state" in self.state else state
 
     def squad(self, tasks, callback=None):
