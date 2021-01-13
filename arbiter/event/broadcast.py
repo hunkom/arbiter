@@ -43,8 +43,9 @@ class GlobalEventHandler(BaseEventHandler):
                     self.subscriptions[subscription] = event.get("data")
             elif event_type == "state":
                 logging.info(f"!!!!!!!!!!!!!!!! Global State {self.state}")
-                self.respond(channel, {"active": self.state["active_workers"],  "total": self.state["total_workers"],
-                                       "available": self.state["total_workers"] - self.state["active_workers"],
-                                       "type": "state", "worker": self.state["type"]}, event["arbiter"])
+                active = self.state[self.settings.__getattribute__(self.settings.worker_type)]["active_workers"]
+                total = self.state[self.settings.__getattribute__(self.settings.worker_type)]["total_workers"]
+                self.respond(channel, {"active": active,  "total": total, "available": total - active,
+                                       "type": "state", "worker": self.settings.worker_type}, event["arbiter"])
         except:  # pylint: disable=W0702
             logging.exception("[GlobalEvent] Got exception")
