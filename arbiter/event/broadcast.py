@@ -43,7 +43,6 @@ class GlobalEventHandler(BaseEventHandler):
                     self.subscriptions[subscription] = event.get("data")
             elif event_type == "state":
                 logging.info(f"!!!!!!!!!!!!!!!! Global State {self.state}")
-                logging.info(f"!!!!!!!!!!!!!!!! Global Settings {self.settings}")
                 self.respond(channel, {"active": self.state["active_workers"],  "total": self.state["total_workers"],
                                        "available": self.state["total_workers"] - self.state["active_workers"],
                                        "type": "state", "worker": self.state["type"]}, event["arbiter"])

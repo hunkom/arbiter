@@ -164,7 +164,16 @@ class Minion(Base):
         for _ in range(workers):
             TaskEventHandler(self.config, subscriptions, state, self.task_registry).start()
         # Listen for global events
-        global_handler = GlobalEventHandler(self.config, subscriptions, state)
+        global_state = {self.config.heavy: {}, self.config.light: {}}
+        if worker_type == "heavy":
+            global_state[self.config.heavy]["type"] = worker_type
+            global_state[self.config.heavy]["total_workers"] = workers
+            global_state[self.config.heavy]["active_workers"] = 0
+        else:
+            global_state[self.config.light]["type"] = worker_type
+            global_state[self.config.light]["total_workers"] = workers
+            global_state[self.config.light]["active_workers"] = 0
+        global_handler = GlobalEventHandler(self.config, subscriptions, global_state)
         global_handler.start()
         global_handler.join()
 
