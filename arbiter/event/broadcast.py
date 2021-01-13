@@ -45,7 +45,8 @@ class GlobalEventHandler(BaseEventHandler):
                 logging.info(f"!!!!!!!!!!!!!!!! Global State {self.state}")
                 active = self.state[self.settings.__getattribute__(self.settings.worker_type)]["active_workers"]
                 total = self.state[self.settings.__getattribute__(self.settings.worker_type)]["total_workers"]
-                self.respond(channel, {"active": active,  "total": total, "available": total - active,
+                queue = self.settings.__getattribute__(self.settings.worker_type)
+                self.respond(channel, {"queue": queue, "active": active, "total": total, "available": total - active,
                                        "type": "state", "worker": self.settings.worker_type}, event["arbiter"])
         except:  # pylint: disable=W0702
             logging.exception("[GlobalEvent] Got exception")

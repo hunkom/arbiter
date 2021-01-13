@@ -47,10 +47,14 @@ class ArbiterEventHandler(BaseEventHandler):
                     self.state["state"] = {}
                 if worker_type not in self.state["state"]:
                     self.state["state"][worker_type] = {}
-                for key, value in event.items():
-                    if key not in self.state["state"][worker_type]:
+                if self.settings.__getattribute__(worker_type) == event["queue"]:
+                    for key, value in event.items():
+                        if key not in self.state["state"][worker_type]:
+                            self.state["state"][worker_type][key] = 0
+                        self.state["state"][worker_type][key] += value
+                else:
+                    for key, value in event.items():
                         self.state["state"][worker_type][key] = 0
-                    self.state["state"][worker_type][key] += value
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
         channel.basic_ack(delivery_tag=method.delivery_tag)
