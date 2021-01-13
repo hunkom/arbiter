@@ -22,10 +22,14 @@ class ArbiterEventHandler(BaseEventHandler):
         return channel
 
     def queue_event_callback(self, channel, method, properties, body):  # pylint: disable=R0912,R0915
+        logging.info(f"channel: {channel}")
+        logging.info(f"method: {method}")
+        logging.info(f"properties: {properties}")
         _ = properties, self, channel, method
         logging.info("[%s] [TaskEvent] Got event", self.ident)
         event = json.loads(body)
         logging.info(f"Event: {event}")
+
         try:
             event_type = event.get("type")
             logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
