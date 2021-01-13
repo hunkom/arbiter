@@ -48,6 +48,7 @@ class ArbiterEventHandler(BaseEventHandler):
                 if worker_type not in self.state["state"]:
                     self.state["state"][worker_type] = {}
                 if self.settings.__getattribute__(worker_type) == event["queue"]:
+                    del event["queue"]
                     for key, value in event.items():
                         if key not in self.state["state"][worker_type]:
                             self.state["state"][worker_type][key] = 0
