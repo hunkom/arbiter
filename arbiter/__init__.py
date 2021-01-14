@@ -214,7 +214,7 @@ class Arbiter(Base):
         logging.info(f"Workers: {stats}")
         logging.info(f"Tests to run {workers_count}")
         for key in workers_count.keys():
-            if stats.get(key) and stats[key]["available"] < workers_count[key]:
+            if not stats.get(key) or stats[key]["available"] < workers_count[key]:
                 raise NameError(f"Not enough of {key} workers")
         return self.group(tasks, callback)
 
