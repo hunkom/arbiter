@@ -32,10 +32,11 @@ def _get_connection(config):
         )
         # except pika.exceptions.StreamLostError:
         connection = channel
-        try:
-            connection._process_data_events(time_limit=0)
-        except (pika.exceptions.StreamLostError, pika.exceptions.ChannelClosedByBroker):
-            logging.info("!!!!!!!!!!!!!!!!!!!!!Got exception in _het_connection method")
-            connection = None
-            return _get_connection(config)
-        return connection
+    try:
+        connection._process_data_events(time_limit=0)
+    except (pika.exceptions.StreamLostError, pika.exceptions.ChannelClosedByBroker):
+        logging.info("!!!!!!!!!!!!!!!!!!!!!Got exception in _het_connection method")
+        connection = None
+        return _get_connection(config)
+
+    return connection
