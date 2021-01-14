@@ -33,6 +33,10 @@ class BaseEventHandler(threading.Thread):
                 break
             except pika.exceptions.AMQPChannelError:
                 break
+            except pika.exceptions.StreamLostError:
+                logging.info("Recovering from error")
+                time.sleep(3.0)
+                continue
             except pika.exceptions.AMQPConnectionError:
                 logging.info("Recovering from error")
                 time.sleep(3.0)
