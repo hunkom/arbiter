@@ -7,6 +7,9 @@ from arbiter.event.base import BaseEventHandler
 class GlobalEventHandler(BaseEventHandler):
 
     def _connect_to_specific_queue(self, channel):
+        channel.queue_declare(
+            queue=self.settings.queue, durable=True
+        )
         exchange_queue = channel.queue_declare(queue="", exclusive=True)
         channel.queue_bind(
             exchange=self.settings.all,

@@ -20,9 +20,6 @@ def _get_connection(config):
         )
     )
     channel = _connection.channel()
-    channel.queue_declare(
-        queue=config.queue, durable=True
-    )
     channel.exchange_declare(
         exchange=config.all,
         exchange_type="fanout", durable=True

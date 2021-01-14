@@ -15,6 +15,9 @@ class TaskEventHandler(BaseEventHandler):
         self.result_queue = Queue()
 
     def _connect_to_specific_queue(self, channel):
+        channel.queue_declare(
+            queue=self.settings.queue, durable=True
+        )
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(
             queue=self.settings.queue,
