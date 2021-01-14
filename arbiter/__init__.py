@@ -9,6 +9,7 @@ from arbiter.event.arbiter import ArbiterEventHandler
 from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
 from arbiter.config import Config, task_types
+from arbiter.rabbit_connector import _get_connection
 
 connection = None
 
@@ -19,52 +20,15 @@ class Base:
         self.config = Config(host, port, user, password, vhost, light_queue, heavy_queue, all_queue)
         self.state = dict()
 
-    def _get_connection(self, recreate=False):
-        global connection
-        if not connection or recreate:
-            _connection = pika.BlockingConnection(
-                pika.ConnectionParameters(
-                    host=self.config.host,
-                    port=self.config.port,
-                    virtual_host=self.config.vhost,
-                    credentials=pika.PlainCredentials(
-                        self.config.user,
-                        self.config.password
-                    )
-                )
-            )
-            channel = _connection.channel()
-            channel.queue_declare(
-                queue=self.config.light, durable=True
-            )
-            channel.queue_declare(
-                queue=self.config.heavy, durable=True
-            )
-            channel.exchange_declare(
-                exchange=self.config.all,
-                exchange_type="fanout", durable=True
-            )
-            connection = channel
-        return connection
-
     def send_message(self, msg, queue="", exchange=""):
-        try:
-            logging.info(f"Send message: {msg}")
-            self._get_connection().basic_publish(
-                exchange=exchange, routing_key=queue,
-                body=dumps(msg).encode("utf-8"),
-                properties=pika.BasicProperties(
-                    delivery_mode=2
-                )
+        logging.info(f"Send message: {msg}")
+        _get_connection(self.config).basic_publish(
+            exchange=exchange, routing_key=queue,
+            body=dumps(msg).encode("utf-8"),
+            properties=pika.BasicProperties(
+                delivery_mode=2
             )
-        except pika.exceptions.StreamLostError:
-            self._get_connection(recreate=True).basic_publish(
-                exchange=exchange, routing_key=queue,
-                body=dumps(msg).encode("utf-8"),
-                properties=pika.BasicProperties(
-                    delivery_mode=2
-                )
-            )
+        )
 
     def wait_for_tasks(self, tasks):
         tasks_done = []
@@ -79,14 +43,9 @@ class Base:
         if not task.callback_queue and sync:
             generated_queue = True
             queue_id = str(uuid4())
-            try:
-                self._get_connection().queue_declare(
-                    queue=queue_id, durable=True
-                )
-            except pika.exceptions.StreamLostError:
-                self._get_connection(recreate=True).queue_declare(
-                    queue=queue_id, durable=True
-                )
+            _get_connection(self.config).queue_declare(
+                queue=queue_id, durable=True
+            )
         tasks = []
         for _ in range(task.tasks_count):
             task_key = str(uuid4())
@@ -109,10 +68,7 @@ class Base:
                 yield message
         if generated_queue:
             handler.stop()
-            try:
-                self._get_connection().queue_delete(queue=task.callback_queue)
-            except pika.exceptions.StreamLostError:
-                self._get_connection(recreate=True).queue_delete(queue=task.callback_queue)
+            _get_connection(self.config).queue_delete(queue=task.callback_queue)
             handler.join()
 
 
@@ -246,10 +202,7 @@ class Arbiter(Base):
 
     def close(self):
         self.handler.stop()
-        try:
-            self._get_connection().queue_delete(queue=self.arbiter_id)
-        except pika.exceptions.StreamLostError:
-            self._get_connection(recreate=True).queue_delete(queue=self.arbiter_id)
+        _get_connection(self.config).queue_delete(queue=self.arbiter_id)
         self.handler.join()
 
     def workers(self):
