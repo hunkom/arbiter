@@ -22,9 +22,6 @@ class ArbiterEventHandler(BaseEventHandler):
         return channel
 
     def queue_event_callback(self, channel, method, properties, body):  # pylint: disable=R0912,R0915
-        logging.info(f"channel: {channel}")
-        logging.info(f"method: {method}")
-        logging.info(f"properties: {properties}")
         _ = properties, self, channel, method
         logging.info("[%s] [TaskEvent] Got event", self.ident)
         event = json.loads(body)
@@ -40,22 +37,17 @@ class ArbiterEventHandler(BaseEventHandler):
                 if event.get("result"):
                     self.state[event.get("task_key")]["result"] = event.get("result")
             if event_type == "state":
-                worker_type = event["worker"]
+                queue = event["queue"]
                 del event["type"]
-                del event["worker"]
+                del event["queue"]
                 if "state" not in self.state:
                     self.state["state"] = {}
-                if worker_type not in self.state["state"]:
-                    self.state["state"][worker_type] = {}
-                if self.settings.__getattribute__(worker_type) == event["queue"]:
-                    del event["queue"]
-                    for key, value in event.items():
-                        if key not in self.state["state"][worker_type]:
-                            self.state["state"][worker_type][key] = 0
-                        self.state["state"][worker_type][key] += value
-                else:
-                    for key, value in event.items():
-                        self.state["state"][worker_type][key] = 0
+                if queue not in self.state["state"]:
+                    self.state["state"][queue] = {}
+                for key, value in event.items():
+                    if key not in self.state["state"][queue]:
+                        self.state["state"][queue][key] = 0
+                    self.state["state"][queue][key] += value
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
         channel.basic_ack(delivery_tag=method.delivery_tag)

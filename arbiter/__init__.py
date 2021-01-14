@@ -8,16 +8,15 @@ from time import sleep
 from arbiter.event.arbiter import ArbiterEventHandler
 from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
-from arbiter.config import Config, task_types
+from arbiter.config import Config
 from arbiter.rabbit_connector import _get_connection
 
 connection = None
 
 
 class Base:
-    def __init__(self, host, port, user, password, vhost="carrier",
-                 light_queue="arbiterLight", heavy_queue="arbiterHeavy", all_queue="arbiterAll"):
-        self.config = Config(host, port, user, password, vhost, light_queue, heavy_queue, all_queue)
+    def __init__(self, host, port, user, password, vhost="carrier", queue=None, all_queue="arbiterAll"):
+        self.config = Config(host, port, user, password, vhost, queue, all_queue)
         self.state = dict()
 
     def send_message(self, msg, queue="", exchange=""):
@@ -52,13 +51,13 @@ class Base:
             tasks.append(task_key)
             if task.callback_queue:
                 self.state[task_key] = {
-                    "task_type": task.task_type,
+                    "task_type": task.queue,
                     "state": "initiated"
                 }
             logging.info(task.to_json())
             message = task.to_json()
             message["task_key"] = task_key
-            self.send_message(message, queue=self.config.__getattribute__(task.task_type))
+            self.send_message(message, queue=task.queue)
             yield task_key
         if generated_queue:
             handler = ArbiterEventHandler(self.config, {}, self.state, task.callback_queue)
@@ -73,14 +72,12 @@ class Base:
 
 
 class Minion(Base):
-    def __init__(self, host, port, user, password, vhost="carrier",
-                 light_queue="arbiterLight", heavy_queue="arbiterHeavy", all_queue="arbiterAll"):
-        super().__init__(host, port, user, password, vhost, light_queue,
-                         heavy_queue, all_queue)
+    def __init__(self, host, port, user, password, vhost="carrier", queue="default", all_queue="arbiterAll"):
+        super().__init__(host, port, user, password, vhost, queue, all_queue)
         self.task_registry = {}
 
-    def apply(self, task_name, task_type="heavy", tasks_count=1, task_args=None, task_kwargs=None, sync=True):
-        task = Task(task_name, task_type, tasks_count, task_args, task_kwargs)
+    def apply(self, task_name, queue="default", tasks_count=1, task_args=None, task_kwargs=None, sync=True):
+        task = Task(task_name, queue, tasks_count, task_args, task_kwargs)
         for message in self.add_task(task, sync=sync):
             yield message
 
@@ -100,45 +97,32 @@ class Minion(Base):
 
         return inner_task
 
-    def _create_task_from_callable(self, func, name=None, task_type="heavy", **kwargs):
+    def _create_task_from_callable(self, func, name=None, **kwargs):
         name = name if name else f"{func.__name__}.{func.__module__}"
-        if task_type not in task_types:
-            raise TypeError(f'task_type is not supported please use any of [{",".join(task_types)}]')
         if name not in self.task_registry:
             self.task_registry[name] = func
         return self.task_registry[name]
 
-    def run(self, worker_type, workers):
+    def run(self, queue, workers):
         state = dict()
         subscriptions = dict()
-        self.config.worker_type = worker_type
-        logging.info("Starting '%s' worker", self.config.worker_type)
+        self.config.queue = queue
+        logging.info("Starting '%s' worker", self.config.queue)
         # Listen for task events
-        state["type"] = worker_type
+        state["queue"] = queue
         state["total_workers"] = workers
         state["active_workers"] = 0
         for _ in range(workers):
             TaskEventHandler(self.config, subscriptions, state, self.task_registry).start()
         # Listen for global events
-        global_state = {self.config.heavy: {}, self.config.light: {}}
-        if worker_type == "heavy":
-            global_state[self.config.heavy]["type"] = worker_type
-            global_state[self.config.heavy]["total_workers"] = workers
-            global_state[self.config.heavy]["active_workers"] = 0
-        else:
-            global_state[self.config.light]["type"] = worker_type
-            global_state[self.config.light]["total_workers"] = workers
-            global_state[self.config.light]["active_workers"] = 0
-        global_handler = GlobalEventHandler(self.config, subscriptions, global_state)
+        global_handler = GlobalEventHandler(self.config, subscriptions, state)
         global_handler.start()
         global_handler.join()
 
 
 class Arbiter(Base):
-    def __init__(self, host, port, user, password, vhost="carrier", light_queue="arbiterLight",
-                 heavy_queue="arbiterHeavy", all_queue="arbiterAll", start_consumer=True):
-        super().__init__(host, port, user, password, vhost, light_queue,
-                         heavy_queue, all_queue)
+    def __init__(self, host, port, user, password, vhost="carrier", all_queue="arbiterAll", start_consumer=True):
+        super().__init__(host, port, user, password, vhost, all_queue="arbiterAll")
         self.arbiter_id = None
         self.state = dict(groups=dict())
         self.subscriptions = dict()
@@ -148,8 +132,8 @@ class Arbiter(Base):
             self.handler = ArbiterEventHandler(self.config, self.subscriptions, self.state, self.arbiter_id)
             self.handler.start()
 
-    def apply(self, task_name, task_type="heavy", tasks_count=1, sync=False, task_args=None, task_kwargs=None):
-        task = Task(task_name, task_type, tasks_count, task_args, task_kwargs, callback_queue=self.arbiter_id)
+    def apply(self, task_name, queue="default", tasks_count=1, sync=False, task_args=None, task_kwargs=None):
+        task = Task(task_name, queue, tasks_count, task_args, task_kwargs, callback_queue=self.arbiter_id)
         return list(self.add_task(task, sync=sync))
 
     def kill(self, task_key, sync=True):
@@ -172,11 +156,11 @@ class Arbiter(Base):
                 tasks.append(task_id)
                 self.kill(task_id, sync=False)
         tasks_done = []
+        logging.info("Terminating ...")
         while not all(task in tasks_done for task in tasks):
             for task in tasks:
                 if task not in tasks_done and self.state[task]["state"] == 'done':
                     tasks_done.append(task)
-            logging.info("Terminating ...")
             sleep(1)
 
     def status(self, task_key):
@@ -220,14 +204,18 @@ class Arbiter(Base):
         """
         Set of tasks that need to be executed together
         """
-        workers_count = {"heavy": 0, "light": 0}
+        workers_count = {}
         for each in tasks:
-            workers_count[each.task_type] += each.tasks_count
+            workers_count[each.queue] = 0
+        for each in tasks:
+            workers_count[each.queue] += each.tasks_count
         sleep(5)
+        logging.info(f"!!!!!!!!!!!!!!!!!!!!!Tasks count: {workers_count}")
         stats = self.workers()
+        logging.info(f"!!!!!!!!!!!!!!!!!!! Stats {stats}")
         for key in workers_count.keys():
-            logging.info(f"available: {stats['heavy']['available']}")
-            logging.info(f"to run {workers_count['heavy']}")
+            logging.info(f"available: {stats[key]['available']}")
+            logging.info(f"to run {workers_count[key]}")
             if workers_count[key] and stats[key]["available"] < workers_count[key]:
                 raise NameError(f"Not enough of {key} workers")
         return self.group(tasks, callback)
@@ -277,13 +265,13 @@ class Arbiter(Base):
 
 
 class Task:
-    def __init__(self, name, task_type='heavy', tasks_count=1, task_args=None, task_kwargs=None, callback_queue=None):
+    def __init__(self, name, queue='default', tasks_count=1, task_args=None, task_kwargs=None, callback_queue=None):
         if not task_args:
             task_args = []
         if not task_kwargs:
             task_kwargs = {}
         self.name = name
-        self.task_type = task_type
+        self.queue = queue
         self.tasks_count = tasks_count
         self.task_args = task_args
         self.task_kwargs = task_kwargs
