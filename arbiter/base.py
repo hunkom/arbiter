@@ -46,6 +46,7 @@ class Base:
         except:
             connection = None
             channel = None
+            logging.info("!!!!!!!!!!!!!!!!! Closed connection. Reconnecting....")
             return self._get_connection()
         return channel
 
