@@ -19,7 +19,7 @@ class TaskEventHandler(BaseEventHandler):
     def _connect_to_specific_queue(self, channel):
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(
-            queue=self.settings.__getattribute__(self.settings.worker_type),
+            queue=self.settings.queue,
             on_message_callback=self.queue_event_callback
         )
         logging.info("[%s] Waiting for task events", self.ident)
