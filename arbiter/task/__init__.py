@@ -2,6 +2,7 @@ import pika
 from json import dumps
 from uuid import uuid4
 from time import sleep
+import logging
 
 from arbiter.config import Config
 from arbiter.event.process import ProcessEventHandler
@@ -55,7 +56,9 @@ class ProcessWatcher:
             "arbiter": self.process_id
         }
         self.send_message(message, exchange=self.config.all)
-        sleep(2)
+        sleep(10)
+        logging.info("Collect State Method !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        logging.info(self.state[self.process_id])
         return self.state.get(self.process_id, {})
 
     def clear_state(self, tasks):
