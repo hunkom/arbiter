@@ -70,11 +70,8 @@ class TaskEventHandler(BaseEventHandler):
                 for finished_task in state.get("done", []):
                     if finished_task not in self.finished_tasks[callback_key]:
                         self.finished_tasks[callback_key].append(finished_task)
-                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                logging.info(f"Finished tasks: {self.finished_tasks}")
-                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 if all(task in self.finished_tasks.get(event.get("task_key")) for task in event.get("tasks_array")):
-                    del self.finished_tasks[event.get("task_key")]
+                    self.finished_tasks.clear()
                     event["type"] = "task"
                     minibitter.clear_state(event.get("tasks_array"))
                     event.pop("tasks_array")

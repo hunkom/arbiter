@@ -56,9 +56,7 @@ class ProcessWatcher:
             "arbiter": self.process_id
         }
         self.send_message(message, exchange=self.config.all)
-        sleep(10)
-        logging.info("Collect State Method !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        logging.info(self.state[self.process_id])
+        sleep(2)
         return self.state.get(self.process_id, {})
 
     def clear_state(self, tasks):
