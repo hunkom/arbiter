@@ -15,6 +15,7 @@ class TaskEventHandler(BaseEventHandler):
         super().__init__(settings, subscriptions, state)
         self.task_registry = task_registry
         self.result_queue = Queue()
+        self.finished_tasks = {}
 
     def _connect_to_specific_queue(self, channel):
         channel.basic_qos(prefetch_count=1)
@@ -32,9 +33,6 @@ class TaskEventHandler(BaseEventHandler):
             self.state["active_workers"] += 1
             # new tasks will be w/o key testing purpose only
             # do not use in prod implementation
-            logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            logging.info(f"Task event: {event}")
-            logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             if not event.get("task_key"):
                 event["task_key"] = uuid4()
             event_type = event.get("type", "task")
@@ -63,10 +61,20 @@ class TaskEventHandler(BaseEventHandler):
                     self.state.pop(event.get("task_key"))
 
             elif event_type == "callback":
-                minibitter = ProcessWatcher(event.get("task_key"), self.settings.host, self.settings.port,
+                callback_key = event.get("task_key")
+                minibitter = ProcessWatcher(callback_key, self.settings.host, self.settings.port,
                                             self.settings.user, self.settings.password)
                 state = minibitter.collect_state(event.get("tasks_array"))
-                if all(task in state.get("done", []) for task in event.get("tasks_array")):
+                if callback_key not in list(self.finished_tasks.keys()):
+                    self.finished_tasks[callback_key] = []
+                for finished_task in state.get("done", []):
+                    if finished_task not in self.finished_tasks[callback_key]:
+                        self.finished_tasks[callback_key].append(finished_task)
+                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                logging.info(f"Finished tasks: {self.finished_tasks}")
+                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                if all(task in self.finished_tasks.get(event.get("task_key")) for task in event.get("tasks_array")):
+                    del self.finished_tasks[event.get("task_key")]
                     event["type"] = "task"
                     minibitter.clear_state(event.get("tasks_array"))
                     event.pop("tasks_array")
