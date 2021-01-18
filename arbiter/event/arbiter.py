@@ -25,8 +25,6 @@ class ArbiterEventHandler(BaseEventHandler):
         _ = properties, self, channel, method
         logging.info("[%s] [TaskEvent] Got event", self.ident)
         event = json.loads(body)
-        logging.info(f"Event: {event}")
-
         try:
             event_type = event.get("type")
             logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
