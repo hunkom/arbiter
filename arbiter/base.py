@@ -33,9 +33,10 @@ class Base:
             )
         if not channel:
             channel = connection.channel()
-            channel.queue_declare(
-                queue=self.config.queue, durable=True
-            )
+            if self.config.queue:
+                channel.queue_declare(
+                    queue=self.config.queue, durable=True
+                )
             channel.exchange_declare(
                 exchange=self.config.all,
                 exchange_type="fanout", durable=True
