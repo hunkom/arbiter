@@ -70,10 +70,10 @@ class Arbiter(Base):
             self.handler = ArbiterEventHandler(self.config, self.subscriptions, self.state, self.arbiter_id)
             self.handler.start()
 
-    def apply(self, task_name, queue="default", tasks_count=1, task_args=None, task_kwargs=None):
+    def apply(self, task_name, queue="default", tasks_count=1, task_args=None, task_kwargs=None, sync=False):
         task = Task(name=task_name, queue=queue, tasks_count=tasks_count,
                     task_args=task_args, task_kwargs=task_kwargs, callback_queue=self.arbiter_id)
-        return list(self.add_task(task))
+        return list(self.add_task(task, sync=sync))
 
     def kill(self, task_key, sync=True):
         message = {
