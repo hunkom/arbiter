@@ -75,7 +75,7 @@ class BaseEventHandler(threading.Thread):
 
     @staticmethod
     def respond(channel, message, queue, delay=0):
-        logging.debug(message)
+        logging.info(message)
         headers = {}
         if delay and isinstance(delay, int):
             headers = {"x-delay": delay}

@@ -93,7 +93,7 @@ class Base:
                     "task_type": task.task_type,
                     "state": "initiated"
                 }
-            logging.debug(f"Task body {task.to_json()}")
+            logging.info(f"Task body {task.to_json()}")
             message = task.to_json()
             message["task_key"] = task_key
             self.send_message(message, queue=task.queue)

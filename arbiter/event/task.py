@@ -32,6 +32,9 @@ class TaskEventHandler(BaseEventHandler):
             self.state["active_workers"] += 1
             # new tasks will be w/o key testing purpose only
             # do not use in prod implementation
+            logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            logging.info(f"Task event: {event}")
+            logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             if not event.get("task_key"):
                 event["task_key"] = uuid4()
             event_type = event.get("type", "task")
