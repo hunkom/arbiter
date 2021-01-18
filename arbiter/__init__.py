@@ -50,6 +50,7 @@ class Minion(Base):
         state["queue"] = queue
         state["total_workers"] = workers
         state["active_workers"] = 0
+        state["finished_tasks"] = {}
         for _ in range(workers):
             TaskEventHandler(self.config, subscriptions, state, self.task_registry).start()
         # Listen for global events

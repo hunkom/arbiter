@@ -15,7 +15,6 @@ class TaskEventHandler(BaseEventHandler):
         super().__init__(settings, subscriptions, state)
         self.task_registry = task_registry
         self.result_queue = Queue()
-        self.finished_tasks = {}
 
     def _connect_to_specific_queue(self, channel):
         channel.basic_qos(prefetch_count=1)
@@ -65,16 +64,16 @@ class TaskEventHandler(BaseEventHandler):
                 minibitter = ProcessWatcher(callback_key, self.settings.host, self.settings.port,
                                             self.settings.user, self.settings.password)
                 state = minibitter.collect_state(event.get("tasks_array"))
-                if callback_key not in list(self.finished_tasks.keys()):
-                    self.finished_tasks[callback_key] = []
+                if callback_key not in list(self.state["finished_tasks"].keys()):
+                    self.state["finished_tasks"][callback_key] = []
                 for finished_task in state.get("done", []):
-                    if finished_task not in self.finished_tasks[callback_key]:
-                        self.finished_tasks[callback_key].append(finished_task)
+                    if finished_task not in self.state["finished_tasks"][callback_key]:
+                        self.state["finished_tasks"][callback_key].append(finished_task)
                 logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                logging.info(self.finished_tasks)
+                logging.info(self.state["finished_tasks"])
                 logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                if all(task in self.finished_tasks.get(event.get("task_key")) for task in event.get("tasks_array")):
-                    self.finished_tasks.clear()
+                if all(task in self.state["finished_tasks"][callback_key] for task in event.get("tasks_array")):
+                    del self.state["finished_tasks"][callback_key]
                     event["type"] = "task"
                     minibitter.clear_state(event.get("tasks_array"))
                     event.pop("tasks_array")
