@@ -46,7 +46,6 @@ class Base:
         except:
             connection = None
             channel = None
-            logging.info("!!!!!!!!!!!!!!!!! Closed connection. Reconnecting....")
             return self._get_connection()
         return channel
 
@@ -91,7 +90,7 @@ class Base:
             tasks.append(task_key)
             if task.callback_queue and task_key not in self.state:
                 self.state[task_key] = {
-                    "task_type": task.queue,
+                    "task_type": task.task_type,
                     "state": "initiated"
                 }
             logging.debug(f"Task body {task.to_json()}")
