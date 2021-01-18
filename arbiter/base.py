@@ -41,6 +41,12 @@ class Base:
                 exchange=self.config.all,
                 exchange_type="fanout", durable=True
             )
+        try:
+            connection.process_data_events()
+        except:
+            connection = None
+            channel = None
+            return self._get_connection()
         return channel
 
     @staticmethod
