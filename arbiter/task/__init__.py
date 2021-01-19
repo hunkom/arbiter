@@ -2,24 +2,24 @@ import pika
 from json import dumps
 from uuid import uuid4
 from time import sleep
-import logging
 
 from arbiter.config import Config
 from arbiter.event.process import ProcessEventHandler
 
 
 class ProcessWatcher:
-    def __init__(self, process_id, host, port, user, password, vhost="carrier", all_queue="arbiterAll"):
+    def __init__(self, process_id, host, port, user, password, state, vhost="carrier", all_queue="arbiterAll",
+                 wait_time=2.0):
         self.config = Config(host, port, user, password, vhost, None, all_queue)
         self.connection = self._get_connection()
-
-        self.state = dict()
         self.process_id = process_id
-        self.state = {}
+        self.state = state
         self.subscriptions = dict()
         self.arbiter_id = str(uuid4())
         self.handler = ProcessEventHandler(self.config, self.subscriptions, self.state, self.process_id)
         self.handler.start()
+        self.handler.wait_running()
+        self.wait_time = wait_time
 
     def _get_connection(self):  # This code duplication needed to avoid thread safeness problem of pika
         _connection = pika.BlockingConnection(
@@ -46,17 +46,18 @@ class ProcessWatcher:
         )
 
     def collect_state(self, tasks):
-        self.state[self.process_id] = {
-            "running": [],
-            "done": []
-        }
+        if self.process_id not in self.state:
+            self.state[self.process_id] = {
+                "running": [],
+                "done": []
+            }
         message = {
             "type": "task_state",
             "tasks": tasks,
             "arbiter": self.process_id
         }
         self.send_message(message, exchange=self.config.all)
-        sleep(2)
+        sleep(self.wait_time)
         return self.state.get(self.process_id, {})
 
     def clear_state(self, tasks):
@@ -66,7 +67,7 @@ class ProcessWatcher:
             "arbiter": self.process_id
         }
         self.send_message(message, exchange=self.config.all)
-        sleep(2)
+        sleep(self.wait_time)
 
     def close(self):
         self.handler.stop()

@@ -38,4 +38,4 @@ def function_as_a_service(runtime="", artifact="/", galloper='', auth_token='', 
 
 
 if __name__ == "__main__":
-    app.run(worker_type="heavy", workers=3)
+    app.run(queue="small", workers=3)

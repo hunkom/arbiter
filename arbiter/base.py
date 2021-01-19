@@ -12,9 +12,10 @@ channel = None
 
 
 class Base:
-    def __init__(self, host, port, user, password, vhost="carrier", queue=None, all_queue="arbiterAll"):
+    def __init__(self, host, port, user, password, vhost="carrier", queue=None, all_queue="arbiterAll", wait_time=2.0):
         self.config = Config(host, port, user, password, vhost, queue, all_queue)
         self.state = dict()
+        self.wait_time = wait_time
 
     def _get_connection(self):
         global connection
@@ -93,7 +94,7 @@ class Base:
                     "task_type": task.task_type,
                     "state": "initiated"
                 }
-            logging.info(f"Task body {task.to_json()}")
+            logging.debug(f"Task body {task.to_json()}")
             message = task.to_json()
             message["task_key"] = task_key
             self.send_message(message, queue=task.queue)

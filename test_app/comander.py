@@ -20,9 +20,11 @@ def simple_task_in_task():
 def tasks_squad():
     arbiter = Arbiter(host=arbiter_host, port=5672, user='user', password='password')
     tasks = []
-    for _ in range(3):
-        tasks.append(Task("simple_add", task_args=[1, 2]))
-    squad_id = arbiter.squad(tasks)
+    #for _ in range(3):
+    tasks.append(Task("simple_add", queue="default", task_args=[1, 2]))
+    tasks.append(Task("simple_add", queue="small", task_args=[1, 2]))
+    tasks.append(Task("simple_add", queue="small", task_args=[1, 2]))
+    squad_id = arbiter.squad(tasks, callback=Task("simple_add", task_args=[7, 7]))
     while arbiter.status(squad_id).get("state") != "done":
         sleep(1)
     print(arbiter.status(squad_id))
@@ -56,4 +58,4 @@ def tasks_pipe():
 
 
 if __name__ == "__main__":
-    tasks_pipe()
+    tasks_squad()
