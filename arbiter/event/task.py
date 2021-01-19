@@ -64,23 +64,22 @@ class TaskEventHandler(BaseEventHandler):
                 minibitter = ProcessWatcher(callback_key, self.settings.host, self.settings.port,
                                             self.settings.user, self.settings.password)
                 state = minibitter.collect_state(event.get("tasks_array"))
-                if callback_key not in list(self.state["finished_tasks"].keys()):
-                    self.state["finished_tasks"][callback_key] = []
-                for finished_task in state.get("done", []):
-                    if finished_task not in self.state["finished_tasks"][callback_key]:
-                        self.state["finished_tasks"][callback_key].append(finished_task)
-                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                logging.info(self.state["finished_tasks"])
-                logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                if all(task in self.state["finished_tasks"][callback_key] for task in event.get("tasks_array")):
-                    del self.state["finished_tasks"][callback_key]
+                # if callback_key not in list(self.state["finished_tasks"].keys()):
+                #     self.state["finished_tasks"][callback_key] = []
+                # for finished_task in state.get("done", []):
+                #     if finished_task not in self.state["finished_tasks"][callback_key]:
+                #         self.state["finished_tasks"][callback_key].append(finished_task)
+                if all(task in state.get("done", []) for task in event.get("tasks_array")):
+                    #del self.state["finished_tasks"][callback_key]
                     event["type"] = "task"
                     minibitter.clear_state(event.get("tasks_array"))
+                    minibitter.close()
                     event.pop("tasks_array")
                     self.respond(channel, event, self.settings.queue)
                 else:
+                    minibitter.close()
                     self.respond(channel, event, self.settings.queue, 60000)
-                minibitter.close()
+
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
             if event.get("arbiter"):
