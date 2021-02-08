@@ -47,9 +47,7 @@ class TaskEventHandler(BaseEventHandler):
                     event.get("task_name"), event.get("task_key"), self.result_queue, event.get("args", []),
                     event.get("kwargs", {}))
                 self.state[event.get("task_key")] = worker
-                logging.info(f"{self.ident} [TaskEvent] Before process start. Task - {event.get('task_key')}")
                 worker.start()
-                logging.info(f"{self.ident} [TaskEvent] After process start. Task - {event.get('task_key')}")
                 while worker.is_alive():
                     channel._connection.sleep(1.0)  # pylint: disable=W0212
                 result = self.result_queue.get()

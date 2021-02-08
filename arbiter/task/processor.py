@@ -4,7 +4,7 @@
 import logging
 import multiprocessing
 
-multiprocessing.set_start_method('spawn')
+multiprocessing.set_start_method('fork')
 
 
 class TaskProcess(multiprocessing.Process):
@@ -12,9 +12,7 @@ class TaskProcess(multiprocessing.Process):
 
     def __init__(self, settings, subscriptions, executable, task_name, task_key, result_queue, args, kwargs):
         self.logger = logging.getLogger(f"task.{task_key}")
-        self.logger.info(f"***************** INIT METHOD task - {task_key}")
         super().__init__(target=executable)
-        self.logger.info(f"***************** Self target - {self._target}. Task - {task_key}")
         self.settings = settings
         self.subscriptions = subscriptions
         self.task_name = task_name
@@ -26,17 +24,5 @@ class TaskProcess(multiprocessing.Process):
 
     def run(self):
         """ Run worker process """
-        self.logger.info(f"***************** RUN METHOD task - {self.task_key}")
-        # Run
-        try:
-            # Execute code
-            self.logger.info(f"Starting task - {self.task_key}")
-            # importing code using settings passed from command line
-            if self._target:
-                self.result_queue.put(self._target(*self.task_args, **self.task_kwargs))
-        except:  # pylint: disable=W0702
-            self.logger.exception("Exception during running the task")
-        finally:
-            self.logger.info("Task exiting")
-            for handler in logging.getLogger("").handlers:
-                handler.flush()
+        if self._target:
+            self.result_queue.put(self._target(*self.task_args, **self.task_kwargs))
