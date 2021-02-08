@@ -25,7 +25,7 @@ class TaskProcess(multiprocessing.Process):
 
     def run(self):
         """ Run worker process """
-
+        self.logger.info(f"***************** RUN METHOD task - {self.task_key}")
         # Run
         try:
             # Execute code
