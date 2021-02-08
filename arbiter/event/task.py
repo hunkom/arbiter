@@ -34,12 +34,10 @@ class TaskEventHandler(BaseEventHandler):
             if not event.get("task_key"):
                 event["task_key"] = uuid4()
             event_type = event.get("type", "task")
-            logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
             if event_type == "task":
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
                                            "task_state": "running"}, event.get("arbiter"))
-                logging.info("[%s] [TaskEvent] Starting worker process", self.ident)
                 if event.get("task_name") not in self.task_registry:
                     raise ModuleNotFoundError("Task is not a part of this worker")
                 worker = TaskProcess(
