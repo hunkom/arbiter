@@ -11,6 +11,8 @@ class TaskProcess(multiprocessing.Process):
     """ Worker process for task """
 
     def __init__(self, settings, subscriptions, executable, task_name, task_key, result_queue, args, kwargs):
+        self.logger = logging.getLogger(f"task.{task_key}")
+        self.logger.info(f"***************** INIT METHOD task - {task_key}")
         super().__init__(target=executable)
         self.settings = settings
         self.subscriptions = subscriptions
@@ -18,12 +20,12 @@ class TaskProcess(multiprocessing.Process):
         self.task_key = task_key
         self.task_args = args
         self.task_kwargs = kwargs
-        self.logger = logging
+        #self.logger = logging
         self.result_queue = result_queue
 
     def run(self):
         """ Run worker process """
-        self.logger = logging.getLogger(f"task.{self.task_key}")
+
         # Run
         try:
             # Execute code
