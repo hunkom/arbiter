@@ -9,6 +9,8 @@ from arbiter.event.arbiter import ArbiterEventHandler
 from arbiter.event.process import ProcessEventHandler
 from arbiter.event.task import TaskEventHandler
 from arbiter.event.broadcast import GlobalEventHandler
+from arbiter.event.rpcServer import RPCEventHandler
+from arbiter.event.rpcClient import RPCClintEventHandler
 from arbiter.config import Config
 
 
@@ -16,10 +18,11 @@ class Minion(Base):
     def __init__(self, host, port, user, password, vhost="carrier", queue="default", all_queue="arbiterAll"):
         super().__init__(host, port, user, password, vhost, queue, all_queue)
         self.task_registry = {}
+        self.task_handlers = []
 
-    def apply(self, task_name, queue="default", tasks_count=1, task_args=None, task_kwargs=None, sync=True):
-        task = Task(task_name, queue=queue, tasks_count=tasks_count,
-                    task_args=task_args, task_kwargs=task_kwargs)
+    def apply(self, task_name, queue=None, tasks_count=1, task_args=None, task_kwargs=None, sync=True):
+        task = Task(task_name, queue=queue if queue else self.config.queue,
+                    tasks_count=tasks_count, task_args=task_args, task_kwargs=task_kwargs)
         for message in self.add_task(task, sync=sync):
             yield message
 
@@ -40,6 +43,21 @@ class Minion(Base):
         if name not in self.task_registry:
             self.task_registry[name] = func
         return self.task_registry[name]
+
+    def rpc(self, workers, blocking=False):
+        self.rpc = True
+        state = dict()
+        subscriptions = dict()
+        logging.info("Starting '%s' RPC", self.config.queue)
+        state["queue"] = self.config.queue
+        for _ in range(workers):
+            self.task_handlers.append(RPCEventHandler(self.config, subscriptions, state,
+                                                      self.task_registry, wait_time=self.wait_time))
+            self.task_handlers[-1].start()
+            self.task_handlers[-1].wait_running()
+        if blocking:
+            for prcsrs in self.task_handlers:
+                prcsrs.join()
 
     def run(self, workers):
         state = dict()
@@ -213,6 +231,19 @@ class Arbiter(Base):
             res = res[1]
             yield res
 
+
+class RPCClient(Base):
+    def __init__(self, host, port, user, password, vhost="carrier", all_queue="arbiterAll"):
+        super().__init__(host, port, user, password, vhost, all_queue=all_queue)
+        self.subscriptions = {}
+        self.handler = RPCClintEventHandler(self.config, self.subscriptions, self.state)
+        self.handler.start()
+        self.handler.wait_running()
+
+    def call(self, tasks_module, task_name, *args, **kwargs):
+        task_args = args if args else []
+        task_kwargs = kwargs if kwargs else {}
+        return self.handler.call(tasks_module, task_name, task_args, task_kwargs)
 
 class Task:
     def __init__(self, name, queue='default', tasks_count=1, task_key="", task_type="task",

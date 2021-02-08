@@ -61,10 +61,9 @@ class TaskEventHandler(BaseEventHandler):
             elif event_type == "callback":
                 callback_key = event.get("task_key")
                 minibitter = ProcessWatcher(callback_key, self.settings.host, self.settings.port, self.settings.user,
-                                            self.settings.password, self.state, wait_time=self.wait_time)
+                                            self.settings.password, wait_time=self.wait_time)
                 state = minibitter.collect_state(event.get("tasks_array"))
                 if all(task in state.get("done", []) for task in event.get("tasks_array")):
-                    del self.state[callback_key]
                     event["type"] = "task"
                     minibitter.clear_state(event.get("tasks_array"))
                     minibitter.close()
@@ -72,7 +71,7 @@ class TaskEventHandler(BaseEventHandler):
                     self.respond(channel, event, self.settings.queue)
                 else:
                     minibitter.close()
-                    self.respond(channel, event, self.settings.queue)
+                    self.respond(channel, event, self.settings.queue, 60)
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
             if event.get("arbiter"):
