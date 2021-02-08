@@ -14,6 +14,7 @@ class TaskProcess(multiprocessing.Process):
         self.logger = logging.getLogger(f"task.{task_key}")
         self.logger.info(f"***************** INIT METHOD task - {task_key}")
         super().__init__(target=executable)
+        self.logger.info(f"***************** Self target - {self._target}. Task - {task_key}")
         self.settings = settings
         self.subscriptions = subscriptions
         self.task_name = task_name
