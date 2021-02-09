@@ -1,6 +1,7 @@
 import json
 import logging
-from multiprocessing import Pool
+import multiprocessing
+mp = multiprocessing.get_context("spawn")
 from uuid import uuid4
 from traceback import format_exc
 from arbiter.event.base import BaseEventHandler
@@ -12,7 +13,7 @@ class TaskEventHandler(BaseEventHandler):
     def __init__(self, settings, subscriptions, state, task_registry, wait_time=2.0, pool_size=1):
         super().__init__(settings, subscriptions, state, wait_time=wait_time)
         self.task_registry = task_registry
-        self.pool = Pool(pool_size)
+        self.pool = mp.Pool(pool_size)
 
     def _connect_to_specific_queue(self, channel):
         channel.basic_qos(prefetch_count=1)
@@ -33,10 +34,12 @@ class TaskEventHandler(BaseEventHandler):
             if not event.get("task_key"):
                 event["task_key"] = uuid4()
             event_type = event.get("type", "task")
+            logging.info("[%s] [TaskEvent] Type: %s", self.ident, event_type)
             if event_type == "task":
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
                                            "task_state": "running"}, event.get("arbiter"))
+                logging.info("[%s] [TaskEvent] Starting worker process", self.ident)
                 if event.get("task_name") not in self.task_registry:
                     raise ModuleNotFoundError("Task is not a part of this worker")
                 worker = self.pool.apply_async(self.task_registry[event.get("task_name")],
