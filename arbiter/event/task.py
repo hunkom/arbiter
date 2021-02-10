@@ -52,21 +52,14 @@ class TaskEventHandler(BaseEventHandler):
                 }
                 while not worker.ready():
                     if self.state[event.get('task_key')]["status"] == "canceled":
-                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! CLOSE POOL !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool.close()
-                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! TERMINATE POOL !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool.terminate()
-                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! JOIN !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool.join()
-                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! AFTER JOIN !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool = mp.Pool(self.pool_size)
                         break
                     channel._connection.sleep(1.0)  # pylint: disable=W0212
 
-                if self.state[event.get('task_key')]["status"] == "canceled":
-                    result = "canceled"
-                else:
-                    result = worker.get()
+                result = worker.get() if self.state[event.get('task_key')]["status"] != "canceled" else "canceled"
                 logging.info("[%s] [TaskEvent] Worker process stopped", self.ident)
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
