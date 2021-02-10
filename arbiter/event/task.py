@@ -71,6 +71,7 @@ class TaskEventHandler(BaseEventHandler):
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
                                            "result": result, "task_state": "done"}, event.get("arbiter"))
+                self.state[event.get('task_key')]["status"] = "done"
                 if not event.get("callback", False):
                     self.state.pop(event.get("task_key"))
 
