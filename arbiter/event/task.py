@@ -45,10 +45,21 @@ class TaskEventHandler(BaseEventHandler):
                 worker = self.pool.apply_async(self.task_registry[event.get("task_name")],
                                                event.get("args", []),
                                                event.get("kwargs", {}))
-                self.state[event.get("task_key")] = worker
+                self.state[event.get("task_key")] = {
+                    "process": worker,
+                    "status": "running"
+                }
                 while not worker.ready():
+                    if self.state[event.get('task_key')]["status"] == "canceled":
+                        self.pool.terminate()
+                        self.pool.join()
+                        break
                     channel._connection.sleep(1.0)  # pylint: disable=W0212
-                result = worker.get()
+
+                if self.state[event.get('task_key')]["status"] == "canceled":
+                    result = "canceled"
+                else:
+                    result = worker.get()
                 logging.info("[%s] [TaskEvent] Worker process stopped", self.ident)
                 if event.get("arbiter"):
                     self.respond(channel, {"type": "task_state_change", "task_key": event.get("task_key"),
