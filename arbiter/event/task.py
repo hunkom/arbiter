@@ -12,6 +12,7 @@ from arbiter.task import ProcessWatcher
 class TaskEventHandler(BaseEventHandler):
     def __init__(self, settings, subscriptions, state, task_registry, wait_time=2.0, pool_size=1):
         super().__init__(settings, subscriptions, state, wait_time=wait_time)
+        self.pool_size = pool_size
         self.task_registry = task_registry
         self.pool = mp.Pool(pool_size)
 
@@ -51,8 +52,14 @@ class TaskEventHandler(BaseEventHandler):
                 }
                 while not worker.ready():
                     if self.state[event.get('task_key')]["status"] == "canceled":
+                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! CLOSE POOL !!!!!!!!!!!!!!!!!!!!!!!!!")
+                        self.pool.close()
+                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! TERMINATE POOL !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool.terminate()
+                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! JOIN !!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.pool.join()
+                        logging.info("!!!!!!!!!!!!!!!!!!!!!!!! AFTER JOIN !!!!!!!!!!!!!!!!!!!!!!!!!")
+                        self.pool = mp.Pool(self.pool_size)
                         break
                     channel._connection.sleep(1.0)  # pylint: disable=W0212
 
