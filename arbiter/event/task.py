@@ -1,12 +1,28 @@
+#   Copyright 2020 getcarrier.io
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+
 import json
 import logging
 import multiprocessing
-mp = multiprocessing.get_context("spawn")
 from uuid import uuid4
 from traceback import format_exc
-from arbiter.event.base import BaseEventHandler
 
-from arbiter.task import ProcessWatcher
+from ..event.base import BaseEventHandler
+from ..tasks import ProcessWatcher
+
+mp = multiprocessing.get_context("spawn")
 
 
 class TaskEventHandler(BaseEventHandler):
@@ -71,7 +87,25 @@ class TaskEventHandler(BaseEventHandler):
             elif event_type == "callback":
                 callback_key = event.get("task_key")
                 minibitter = ProcessWatcher(callback_key, self.settings.host, self.settings.port, self.settings.user,
-                                            self.settings.password, wait_time=self.wait_time)
+                                            self.settings.password, vhost=self.settings.vhost, wait_time=self.wait_time)
+                state = minibitter.collect_state(event.get("tasks_array"))
+                if all(task in state.get("done", []) for task in event.get("tasks_array") if task != callback_key):
+                    if not event.get("callback", False):
+                        minibitter.clear_state(event.get("tasks_array"))
+                        event.pop("tasks_array")
+                    event["type"] = "task"
+                    minibitter.close()
+                    self.respond(channel, event, self.settings.queue)
+                else:
+                    logging.info("********************************************")
+                    logging.info("Callback: waiting till all tasks are done")
+                    logging.info("********************************************")
+                    minibitter.close()
+                    self.respond(channel, event, self.settings.queue, 60)
+            elif event_type == "finalize":
+                finalizer_key = event.get("task_key")
+                minibitter = ProcessWatcher(finalizer_key, self.settings.host, self.settings.port, self.settings.user,
+                                            self.settings.password, vhost=self.settings.vhost, wait_time=self.wait_time)
                 state = minibitter.collect_state(event.get("tasks_array"))
                 if all(task in state.get("done", []) for task in event.get("tasks_array")):
                     event["type"] = "task"
@@ -81,7 +115,10 @@ class TaskEventHandler(BaseEventHandler):
                     self.respond(channel, event, self.settings.queue)
                 else:
                     minibitter.close()
-                    self.respond(channel, event, self.settings.queue, 60)
+                    logging.info("********************************************")
+                    logging.info("Finalizer: waiting till all tasks are done")
+                    logging.info("********************************************")
+                    self.respond(channel, event, self.settings.queue, 90)
         except:
             logging.exception("[%s] [TaskEvent] Got exception", self.ident)
             if event.get("arbiter"):

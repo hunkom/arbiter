@@ -1,3 +1,18 @@
+#   Copyright 2020 getcarrier.io
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+
 import json
 import logging
 
@@ -36,9 +51,9 @@ class ProcessEventHandler(BaseEventHandler):
             if event_type == "task_state":
                 event.pop("type")
                 for key, value in event.items():
-                    if not value and key not in self.state[self.process_id]["done"]:
+                    if not value and self.process_id in self.state and key not in self.state[self.process_id]["done"]:
                         self.state[self.process_id]["done"].append(key)
-                    elif value and key not in self.state[self.process_id]["running"]:
+                    elif value and self.process_id in self.state and key not in self.state[self.process_id]["running"]:
                         self.state[self.process_id]["running"].append(key)
                 logging.info(self.state)
         except:  # pylint: disable=W0702
